@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Breathing Exercise Guide</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f8ff;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 600px;
+            width: 100%;
+        }
+        
+        .exercise-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+            transition: background 0.3s;
+        }
+        
+        .btn:hover {
+            background: #45a049;
+        }
+        
+        .btn:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        .circle {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            border: 8px solid #4CAF50;
+            margin: 20px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            transition: transform 0.3s;
+        }
+        
+        .circle.inhale {
+            animation: expand 4s ease-in-out infinite;
+        }
+        
+        .circle.hold {
+            border-color: #2196F3;
+        }
+        
+        .circle.exhale {
+            animation: contract 4s ease-in-out infinite;
+        }
+        
+        @keyframes expand {
+            from { transform: scale(1); }
+            to { transform: scale(1.2); }
+        }
+        
+        @keyframes contract {
+            from { transform: scale(1.2); }
+            to { transform: scale(1); }
+        }
+        
+        .instruction {
+            font-size: 24px;
+            text-align: center;
+            margin: 20px 0;
+            color: #333;
+        }
+        
+        .progress {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 18px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="container">
+        <div class="exercise-card">
+            <h1>Breathing Exercises</h1>
+            <div v-if="!isExercising">
+                <button class="btn" @click="startExercise('478')">4-7-8 Breathing</button>
+                <button class="btn" @click="startExercise('wimhof')">Wim Hof Method</button>
+            </div>
+            
+            <div v-else>
+                <div class="instruction">{{ currentInstruction }}</div>
+                <div class="circle" :class="circleState">
+                    {{ timer }}
+                </div>
+                <div class="progress">
+                    Round {{ currentRound }} of {{ totalRounds }}
+                </div>
+                <button class="btn" @click="stopExercise">Stop Exercise</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+        
+        createApp({
+            data() {
+                return {
+                    isExercising: false,
+                    currentExercise: null,
+                    timer: 0,
+                    currentPhase: '',
+                    currentInstruction: '',
+                    currentRound: 1,
+                    totalRounds: 4,
+                    circleState: '',
+                    audioContext: null,
+                    oscillator: null,
+                    timerId: null,
+                    exercises: {
+                        '478': {
+                            phases: [
+                                { name: 'inhale', duration: 4, instruction: 'Inhale slowly through your nose' },
+                                { name: 'hold', duration: 7, instruction: 'Hold your breath' },
+                                { name: 'exhale', duration: 8, instruction: 'Exhale completely through your mouth' }
+                            ],
+                            rounds: 4
+                        },
+                        'wimhof': {
+                            phases: [
+                                { name: 'deepBreathing', duration: 2, instruction: 'Take deep breaths', repeat: 30 },
+                                { name: 'hold', duration: 90, instruction: 'Hold your breath (exhaled)' },
+                                { name: 'recovery', duration: 15, instruction: 'Deep inhale and hold' }
+                            ],
+                            rounds: 4
+                        }
+                    }
+                }
+            },
+            methods: {
+                startExercise(type) {
+                    this.isExercising = true;
+                    this.currentExercise = type;
+                    this.currentRound = 1;
+                    this.totalRounds = this.exercises[type].rounds;
+                    this.initAudio();
+                    this.startPhase(0);
+                },
+                
+                stopExercise() {
+                    this.isExercising = false;
+                    this.currentExercise = null;
+                    clearInterval(this.timerId);
+                    if (this.oscillator) {
+                        this.oscillator.stop();
+                    }
+                },
+                
+                initAudio() {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                },
+                
+                playTone(frequency = 440, duration = 0.1) {
+                    if (!this.audioContext) return;
+                    
+                    this.oscillator = this.audioContext.createOscillator();
+                    const gainNode = this.audioContext.createGain();
+                    
+                    this.oscillator.connect(gainNode);
+                    gainNode.connect(this.audioContext.destination);
+                    
+                    gainNode.gain.value = 0.1;
+                    this.oscillator.frequency.value = frequency;
+                    
+                    this.oscillator.start();
+                    setTimeout(() => {
+                        this.oscillator.stop();
+                    }, duration * 1000);
+                },
+                
+                startPhase(phaseIndex) {
+                    if (!this.isExercising) return;
+                    
+                    const exercise = this.exercises[this.currentExercise];
+                    const phase = exercise.phases[phaseIndex];
+                    
+                    this.currentPhase = phase.name;
+                    this.currentInstruction = phase.instruction;
+                    this.circleState = phase.name;
+                    
+                    let duration = phase.duration;
+                    if (phase.repeat) {
+                        duration = duration * phase.repeat;
+                    }
+                    
+                    this.timer = duration;
+                    this.playTone(440, 0.2);
+                    
+                    this.timerId = setInterval(() => {
+                        this.timer--;
+                        if (this.timer <= 0) {
+                            clearInterval(this.timerId);
+                            this.playTone(660, 0.2);
+                            
+                            // Move to next phase or round
+                            const nextPhaseIndex = (phaseIndex + 1) % exercise.phases.length;
+                            if (nextPhaseIndex === 0) {
+                                if (this.currentRound < this.totalRounds) {
+                                    this.currentRound++;
+                                    setTimeout(() => this.startPhase(0), 1000);
+                                } else {
+                                    this.stopExercise();
+                                }
+                            } else {
+                                setTimeout(() => this.startPhase(nextPhaseIndex), 1000);
+                            }
+                        }
+                    }, 1000);
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>
